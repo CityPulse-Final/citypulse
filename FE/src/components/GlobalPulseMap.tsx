@@ -8,6 +8,9 @@ const MAPBOX_TOKEN = typeof import.meta !== 'undefined' && import.meta.env?.VITE
   ? import.meta.env.VITE_MAPBOX_TOKEN 
   : '';
 
+// Check if token looks valid (should start with pk. and be reasonably long)
+const isValidToken = MAPBOX_TOKEN && MAPBOX_TOKEN.startsWith('pk.') && MAPBOX_TOKEN.length > 50 && !MAPBOX_TOKEN.includes('example');
+
 interface GlobalPulseMapProps {
   nodes: NodeData[];
   selectedNodeId?: string;
@@ -25,8 +28,8 @@ export function GlobalPulseMap({ nodes, selectedNodeId, onNodeClick }: GlobalPul
     if (map.current || !mapContainer.current) return;
 
     // Check if we have a valid token
-    if (!MAPBOX_TOKEN) {
-      console.warn('Mapbox token not found. Using fallback visualization.');
+    if (!isValidToken) {
+      console.warn('Mapbox token not found or invalid. Using fallback visualization.');
       setMapError(true);
       return;
     }
@@ -119,104 +122,175 @@ export function GlobalPulseMap({ nodes, selectedNodeId, onNodeClick }: GlobalPul
       return '#00F5FF';
     };
 
+    // Mohali bounds for coordinate mapping
+    const minLng = 76.68, maxLng = 76.78;
+    const minLat = 30.68, maxLat = 30.75;
+    
+    const mapCoordToSvg = (lng: number, lat: number) => {
+      const x = ((lng - minLng) / (maxLng - minLng)) * 700 + 50;
+      const y = ((maxLat - lat) / (maxLat - minLat)) * 500 + 50;
+      return { x, y };
+    };
+
     return (
-      <div className="w-full h-full relative bg-[#0B0E14]">
-        {/* Fallback: Simple SVG map visualization */}
-        <div className="absolute inset-0 flex items-center justify-center">
-          <div className="relative w-full h-full max-w-4xl">
-            <svg className="w-full h-full" viewBox="0 0 800 600">
-              {/* Grid background */}
-              <defs>
-                <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
-                  <path d="M 40 0 L 0 0 0 40" fill="none" stroke="rgba(255,255,255,0.05)" strokeWidth="1"/>
-                </pattern>
-              </defs>
-              <rect width="800" height="600" fill="url(#grid)" />
-              
-              {/* City outline representation */}
-              <text x="400" y="50" textAnchor="middle" fill="#374151" fontSize="24" fontFamily="JetBrains Mono">
-                MOHALI
-              </text>
-              <text x="400" y="75" textAnchor="middle" fill="#6B7280" fontSize="12" fontFamily="JetBrains Mono">
-                Urban Sensing Network
-              </text>
+      <div className="w-full h-full relative bg-[#0B0E14] overflow-hidden">
+        {/* SVG Map Visualization */}
+        <svg className="w-full h-full" viewBox="0 0 800 600" preserveAspectRatio="xMidYMid meet">
+          {/* Grid background */}
+          <defs>
+            <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+              <path d="M 40 0 L 0 0 0 40" fill="none" stroke="rgba(0,245,255,0.08)" strokeWidth="0.5"/>
+            </pattern>
+            <radialGradient id="cityGlow" cx="50%" cy="50%" r="50%">
+              <stop offset="0%" stopColor="rgba(0,245,255,0.15)" />
+              <stop offset="100%" stopColor="rgba(0,0,0,0)" />
+            </radialGradient>
+            <filter id="glow">
+              <feGaussianBlur stdDeviation="3" result="coloredBlur"/>
+              <feMerge>
+                <feMergeNode in="coloredBlur"/>
+                <feMergeNode in="SourceGraphic"/>
+              </feMerge>
+            </filter>
+          </defs>
+          
+          {/* Background */}
+          <rect width="800" height="600" fill="#0B0E14" />
+          <rect width="800" height="600" fill="url(#grid)" />
+          
+          {/* City glow effect */}
+          <ellipse cx="400" cy="300" rx="350" ry="250" fill="url(#cityGlow)" />
+          
+          {/* Mohali outline - simplified sectors */}
+          <g stroke="rgba(0,245,255,0.2)" strokeWidth="1" fill="none">
+            {/* Main road network representation */}
+            <path d="M 100 300 L 700 300" strokeDasharray="5,5" />
+            <path d="M 400 100 L 400 500" strokeDasharray="5,5" />
+            <path d="M 200 150 L 600 450" strokeDasharray="3,3" opacity="0.5" />
+            <path d="M 600 150 L 200 450" strokeDasharray="3,3" opacity="0.5" />
+            
+            {/* Sector boundaries */}
+            <rect x="150" y="150" width="200" height="150" rx="5" opacity="0.3" />
+            <rect x="450" y="150" width="200" height="150" rx="5" opacity="0.3" />
+            <rect x="150" y="350" width="200" height="150" rx="5" opacity="0.3" />
+            <rect x="450" y="350" width="200" height="150" rx="5" opacity="0.3" />
+          </g>
+          
+          {/* City label */}
+          <text x="400" y="45" textAnchor="middle" fill="rgba(0,245,255,0.6)" fontSize="18" fontFamily="monospace" fontWeight="bold" letterSpacing="8">
+            MOHALI
+          </text>
+          <text x="400" y="65" textAnchor="middle" fill="rgba(255,255,255,0.3)" fontSize="10" fontFamily="monospace" letterSpacing="2">
+            URBAN SENSING GRID
+          </text>
+          
+          {/* Sector labels */}
+          <text x="250" y="230" textAnchor="middle" fill="rgba(255,255,255,0.15)" fontSize="9" fontFamily="monospace">SECTOR 70</text>
+          <text x="550" y="230" textAnchor="middle" fill="rgba(255,255,255,0.15)" fontSize="9" fontFamily="monospace">IT CITY</text>
+          <text x="250" y="430" textAnchor="middle" fill="rgba(255,255,255,0.15)" fontSize="9" fontFamily="monospace">PHASE 8</text>
+          <text x="550" y="430" textAnchor="middle" fill="rgba(255,255,255,0.15)" fontSize="9" fontFamily="monospace">AEROCITY</text>
 
-              {/* Render nodes on simplified map */}
-              {nodes.map((node, index) => {
-                const x = 200 + (index * 120);
-                const y = 250 + (Math.sin(index) * 80);
-                const color = getNodeColor(node);
-                const pulseSize = 20 + (node.sensors.noise / 100) * 20;
-                const isSelected = selectedNodeId === node.nodeId;
+          {/* Render sensor nodes */}
+          {nodes.map((node, index) => {
+            const pos = mapCoordToSvg(node.coordinates[0], node.coordinates[1]);
+            // Fallback positions if coordinates are out of range
+            const x = isNaN(pos.x) || pos.x < 50 || pos.x > 750 ? 200 + (index * 120) : pos.x;
+            const y = isNaN(pos.y) || pos.y < 50 || pos.y > 550 ? 200 + (index % 2) * 150 : pos.y;
+            const color = getNodeColor(node);
+            const isSelected = selectedNodeId === node.nodeId;
+            
+            return (
+              <g key={node.nodeId} onClick={() => onNodeClick(node.nodeId)} style={{ cursor: 'pointer' }}>
+                {/* Outer pulse ring */}
+                <circle cx={x} cy={y} r="30" fill={color} opacity="0.1">
+                  <animate attributeName="r" values="20;40;20" dur="3s" repeatCount="indefinite" />
+                  <animate attributeName="opacity" values="0.2;0;0.2" dur="3s" repeatCount="indefinite" />
+                </circle>
                 
-                return (
-                  <g key={node.nodeId} onClick={() => onNodeClick(node.nodeId)} style={{ cursor: 'pointer' }}>
-                    {/* Pulse ring */}
-                    <circle cx={x} cy={y} r={pulseSize} fill={color} opacity="0.2">
-                      <animate attributeName="r" from={pulseSize * 0.8} to={pulseSize * 1.5} dur="2s" repeatCount="indefinite" />
-                      <animate attributeName="opacity" from="0.4" to="0" dur="2s" repeatCount="indefinite" />
-                    </circle>
-                    {/* Node dot */}
-                    <circle 
-                      cx={x} 
-                      cy={y} 
-                      r={isSelected ? "12" : "8"}
-                      fill={color} 
-                      stroke="rgba(255,255,255,0.8)" 
-                      strokeWidth="2"
-                      filter={`drop-shadow(0 0 ${isSelected ? '12' : '6'}px ${color})`}
-                    >
-                      {node.isAnomaly && (
-                        <animate attributeName="opacity" values="1;0.3;1" dur="0.5s" repeatCount="indefinite" />
-                      )}
-                    </circle>
-                    {/* Label */}
-                    <text 
-                      x={x} 
-                      y={y - 25} 
-                      textAnchor="middle" 
-                      fill="#00F5FF" 
-                      fontSize="10" 
-                      fontFamily="JetBrains Mono"
-                    >
-                      {node.nodeId}
-                    </text>
-                    <text 
-                      x={x} 
-                      y={y + 25} 
-                      textAnchor="middle" 
-                      fill={color} 
-                      fontSize="11" 
-                      fontFamily="JetBrains Mono"
-                      fontWeight="bold"
-                    >
-                      {node.stressIndex}
-                    </text>
-                  </g>
-                );
-              })}
-            </svg>
-          </div>
-        </div>
+                {/* Inner pulse ring */}
+                <circle cx={x} cy={y} r="18" fill={color} opacity="0.15">
+                  <animate attributeName="r" values="12;25;12" dur="2s" repeatCount="indefinite" />
+                  <animate attributeName="opacity" values="0.3;0.05;0.3" dur="2s" repeatCount="indefinite" />
+                </circle>
+                
+                {/* Node core */}
+                <circle 
+                  cx={x} 
+                  cy={y} 
+                  r={isSelected ? 14 : 10}
+                  fill={color}
+                  stroke="rgba(255,255,255,0.9)" 
+                  strokeWidth={isSelected ? 3 : 2}
+                  filter="url(#glow)"
+                  style={{ transition: 'all 0.3s ease' }}
+                >
+                  {node.isAnomaly && (
+                    <animate attributeName="opacity" values="1;0.4;1" dur="0.5s" repeatCount="indefinite" />
+                  )}
+                </circle>
+                
+                {/* Selection ring */}
+                {isSelected && (
+                  <circle 
+                    cx={x} 
+                    cy={y} 
+                    r="22"
+                    fill="none"
+                    stroke={color}
+                    strokeWidth="2"
+                    strokeDasharray="4,4"
+                    opacity="0.8"
+                  >
+                    <animateTransform attributeName="transform" type="rotate" from={`0 ${x} ${y}`} to={`360 ${x} ${y}`} dur="10s" repeatCount="indefinite" />
+                  </circle>
+                )}
+                
+                {/* Node ID label */}
+                <text 
+                  x={x} 
+                  y={y - 28} 
+                  textAnchor="middle" 
+                  fill="rgba(255,255,255,0.9)" 
+                  fontSize="9" 
+                  fontFamily="monospace"
+                  fontWeight="bold"
+                >
+                  {node.nodeId}
+                </text>
+                
+                {/* Stress value */}
+                <text 
+                  x={x} 
+                  y={y + 35} 
+                  textAnchor="middle" 
+                  fill={color} 
+                  fontSize="12" 
+                  fontFamily="monospace"
+                  fontWeight="bold"
+                  filter="url(#glow)"
+                >
+                  USI: {node.stressIndex}
+                </text>
+              </g>
+            );
+          })}
+        </svg>
 
-        {/* Info overlay */}
-        <div className="absolute top-4 left-4 bg-[#161B22] border border-white/10 rounded p-3 max-w-xs">
-          <p className="text-xs text-gray-400">
-            <span className="text-[#FFB800]">⚠</span> Mapbox visualization unavailable. Showing simplified node layout.
-          </p>
-          <p className="text-xs text-gray-500 mt-1">
-            To enable full map: Set VITE_MAPBOX_TOKEN in your .env file
-          </p>
-        </div>
-
-        {/* Legend */}
-        <div className="absolute bottom-4 right-4 bg-[#161B22] border border-white/10 rounded p-3">
+        {/* Legend - positioned in top-left */}
+        <div className="absolute top-4 left-4 bg-[#161B22]/90 backdrop-blur-sm border border-white/10 rounded-lg p-3">
           <h4 className="text-[10px] font-mono text-gray-400 mb-2 uppercase tracking-widest">Map Legend</h4>
           <div className="space-y-1.5">
             <LegendItem color="#00F5FF" label="Nominal" range="0-54" />
             <LegendItem color="#FFB800" label="Elevated" range="55-79" />
             <LegendItem color="#FF3B3B" label="Critical" range="80-100" />
           </div>
+        </div>
+        
+        {/* Info badge */}
+        <div className="absolute bottom-4 left-4 bg-[#161B22]/80 border border-[#FFB800]/30 rounded px-3 py-2">
+          <p className="text-[10px] text-[#FFB800] font-mono">
+            ⚠ Simplified view • Set VITE_MAPBOX_TOKEN for full map
+          </p>
         </div>
       </div>
     );
