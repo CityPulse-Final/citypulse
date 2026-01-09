@@ -1,7 +1,14 @@
 const { query } = require('../db/connection');
+const mockStore = require('../db/mockStore');
+
+const USE_MOCK = process.env.USE_MOCK === 'true' || !process.env.DATABASE_URL;
 
 exports.getAnomalies = async (req, res) => {
   try {
+    if (USE_MOCK) {
+      return res.json(mockStore.getAnomalies());
+    }
+    
     const { hours = 24, limit = 50 } = req.query;
     
     const result = await query(`
@@ -35,6 +42,12 @@ exports.getAnomalies = async (req, res) => {
 exports.getNodeAnomalies = async (req, res) => {
   try {
     const { nodeId } = req.params;
+    
+    if (USE_MOCK) {
+      const anomalies = mockStore.getAnomalies().filter(a => a.nodeId === nodeId);
+      return res.json(anomalies);
+    }
+    
     const { hours = 24 } = req.query;
     
     const result = await query(`

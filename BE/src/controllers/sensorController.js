@@ -1,6 +1,9 @@
 const { query } = require('../db/connection');
+const mockStore = require('../db/mockStore');
 const { broadcast } = require('../sockets/websocket');
 const mlService = require('../services/mlService');
+
+const USE_MOCK = process.env.USE_MOCK === 'true' || !process.env.DATABASE_URL;
 
 // Calculate stress index using the same formula as frontend
 function calculateStressIndex(sensors) {
@@ -25,22 +28,28 @@ exports.ingest = async (req, res) => {
     const stress_index = calculateStressIndex({ noise, temperature, air_quality, crowd_density });
     const time = new Date();
     
-    await query(
-      `INSERT INTO sensor_readings (time, node_id, noise, temperature, air_quality, crowd_density, stress_index)
-       VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-      [time, node_id, noise, temperature, air_quality, crowd_density, stress_index]
-    );
-    
     const reading = { time, node_id, noise, temperature, air_quality, crowd_density, stress_index };
+    
+    if (USE_MOCK) {
+      mockStore.addReading(reading);
+    } else {
+      await query(
+        `INSERT INTO sensor_readings (time, node_id, noise, temperature, air_quality, crowd_density, stress_index)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+        [time, node_id, noise, temperature, air_quality, crowd_density, stress_index]
+      );
+    }
     
     // Check for anomalies via ML service
     const anomalyResult = await mlService.detectAnomaly(reading);
     if (anomalyResult && anomalyResult.is_anomaly) {
-      await query(
-        `INSERT INTO anomalies (time, node_id, anomaly_score, signals, explanation, stress_index)
-         VALUES ($1, $2, $3, $4, $5, $6)`,
-        [time, node_id, anomalyResult.anomaly_score, anomalyResult.signals, anomalyResult.explanation, stress_index]
-      );
+      if (!USE_MOCK) {
+        await query(
+          `INSERT INTO anomalies (time, node_id, anomaly_score, signals, explanation, stress_index)
+           VALUES ($1, $2, $3, $4, $5, $6)`,
+          [time, node_id, anomalyResult.anomaly_score, anomalyResult.signals, anomalyResult.explanation, stress_index]
+        );
+      }
       reading.anomaly = anomalyResult;
     }
     
@@ -56,6 +65,10 @@ exports.ingest = async (req, res) => {
 
 exports.getLive = async (req, res) => {
   try {
+    if (USE_MOCK) {
+      return res.json(mockStore.getLiveData());
+    }
+    
     const result = await query(`
       SELECT DISTINCT ON (node_id) 
         sr.time, sr.node_id, sr.noise, sr.temperature, sr.air_quality, 
@@ -94,6 +107,10 @@ exports.getHistory = async (req, res) => {
   try {
     const { node_id, hours = 24 } = req.query;
     
+    if (USE_MOCK) {
+      return res.json(mockStore.getHistory(node_id, parseInt(hours)));
+    }
+    
     let sql = `
       SELECT time, node_id, noise, temperature, air_quality, crowd_density, stress_index
       FROM sensor_readings
@@ -127,6 +144,10 @@ exports.getHistory = async (req, res) => {
 
 exports.getNodes = async (req, res) => {
   try {
+    if (USE_MOCK) {
+      return res.json(mockStore.nodes);
+    }
+    
     const result = await query('SELECT * FROM nodes ORDER BY id');
     res.json(result.rows);
   } catch (err) {
