@@ -34,6 +34,17 @@ export default function App() {
   const [currentTime, setCurrentTime] = useState(new Date());
   
   const previousAnomaliesRef = useRef<Set<string>>(new Set());
+  const nodeDataMapRef = useRef<Map<string, NodeData>>(new Map());
+  const selectedNodeRef = useRef<NodeData | null>(null);
+  
+  // Keep refs in sync with state
+  useEffect(() => {
+    nodeDataMapRef.current = nodeDataMap;
+  }, [nodeDataMap]);
+  
+  useEffect(() => {
+    selectedNodeRef.current = selectedNode;
+  }, [selectedNode]);
 
   // 1. Clock Sync
   useEffect(() => {
@@ -98,7 +109,7 @@ export default function App() {
           updatedMap.set(newData.nodeId, newData);
           
           // Only log if data changed significantly
-          const oldData = nodeDataMap.get(newData.nodeId);
+          const oldData = nodeDataMapRef.current.get(newData.nodeId);
           if (!oldData || Math.abs(oldData.stressIndex - newData.stressIndex) > 2) {
             newLogEntries.push(generateActivityLog(newData));
           }
@@ -109,7 +120,7 @@ export default function App() {
           }
           
           if (!newData.isAnomaly) previousAnomaliesRef.current.delete(newData.nodeId);
-          if (selectedNode?.nodeId === newData.nodeId) {
+          if (selectedNodeRef.current?.nodeId === newData.nodeId) {
             setSelectedNode(newData);
           }
         });
@@ -124,7 +135,7 @@ export default function App() {
     }, 3000);
 
     return () => clearInterval(interval);
-  }, [nodeDataMap, selectedNode]);
+  }, []); // Empty dependency array - uses refs instead
 
   // 4. Crisis Mode Demo Trigger (Press 'C')
   useEffect(() => {
