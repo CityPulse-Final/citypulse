@@ -93,11 +93,29 @@ function getLiveData() {
 }
 
 function getHistory(nodeId, hours = 24) {
+  // Generate fresh data for the requested time range if needed
   const cutoff = Date.now() - (hours * 60 * 60 * 1000);
-  let readings = mockData.readings.filter(r => new Date(r.time).getTime() > cutoff);
+  let readings = mockData.readings.filter(r => {
+    const rTime = r.time instanceof Date ? r.time.getTime() : new Date(r.time).getTime();
+    return rTime > cutoff;
+  });
   
   if (nodeId) {
     readings = readings.filter(r => r.node_id === nodeId);
+  }
+  
+  // If no readings found, generate some
+  if (readings.length === 0) {
+    const node = nodes.find(n => n.id === nodeId) || nodes[0];
+    for (let i = 0; i < Math.min(hours * 12, 100); i++) {
+      const timestamp = new Date(Date.now() - i * 5 * 60 * 1000);
+      const data = generateReading(node, timestamp);
+      readings.push({
+        time: timestamp,
+        node_id: node.id,
+        ...data
+      });
+    }
   }
   
   return readings.slice(0, 500).map(r => ({
