@@ -144,5 +144,52 @@ This score determines the "Pulse" of the city markers:
 - Seasonal adjustments (summer heat, winter AQI from crop burning)
 - Explainable anomaly detection with local context
 
+## ML Model Training
 
+### Generate Training Data
 
+```bash
+cd Model/training
+python data_generator.py
+# Generates 30 days of realistic Mohali sensor data
+```
+
+### Train Anomaly Model
+
+```bash
+python train_anomaly_model.py
+# Trains Isolation Forest on generated data
+# Saves model to Model/models/anomaly_model.pkl
+```
+
+### Model Configuration
+
+- **Anomaly Detection**: Isolation Forest with 2% contamination rate
+- **Forecasting**: Exponential smoothing with Mohali baselines
+- **Explainability**: Severity-based explanations with deviation context
+
+## Development
+
+### Mock Mode (No Database Required)
+
+```bash
+cd BE
+USE_MOCK=true npm run dev
+```
+
+### Running Tests
+
+```bash
+# Backend tests
+cd BE && npm test
+
+# ML tests
+cd Model && python -m pytest
+```
+
+## Contributing
+
+1. Fork the repository
+2. Create a feature branch
+3. Make changes with tests
+4. Submit a pull request
