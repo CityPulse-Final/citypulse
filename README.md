@@ -7,7 +7,7 @@ CityPulse is an open-source urban sensing platform that fuses environmental data
 ## Authors
 
 - Tanvir Singh Sandhu(ReservedSnow) (Dev and AI Lead)
-- Shaurya Jain (UI/UX)
+- Shaurya Jain (Dev and UI/UX)
 - Swapneel Premchand
 - Vansh Awasthi
 
